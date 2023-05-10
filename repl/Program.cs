@@ -8,10 +8,6 @@ void writeUI(string answer){
         "Choose a command:\n" +
         "-add order\n-add shipper\n-add product\n-add supplier\n-add employee\n-exit");
 }
-string addProductS(short supplierid, short productid)
-{
-    return "nic jeszcze nie napisalem xd";
-}
 int parseCmd(string text){
     if (text == "add order" || text == "1")
     {
@@ -33,13 +29,9 @@ int parseCmd(string text){
     {
         return 5;
     }
-    else if (text=="show table" || text == "6")
-    {
-        return 6;
-    }
     else if (text == "exit" || text == "7")
     {
-        return 7;
+        return 6;
     }
 
     else return 0;
@@ -48,6 +40,103 @@ int parseCmd(string text){
 string addOrder()
 {
     return "1";
+}
+Product createProduct(short suppId, short prodId)
+{
+    using var context = new NorthwindContext();
+    string[] fieldLabels = { "Product Name", "Supplier Id", "Category Id", "Quantity Per Unit", "Unit Price", "Units In Stock", "Reorder Level" };
+    List<String> fields = new List<string>();
+
+    for (int i = 0; i < fieldLabels.Length; i++)
+    {
+        if (i == 1 && suppId != 0) { fields.Add($"{suppId}");i++ ; }
+        Console.Clear();
+        Console.WriteLine($"Please input {fieldLabels[i]}");
+        string temp = Console.ReadLine();
+        if (temp == "" && i >= 4)
+        {
+            fields.Add("0");
+        }
+        else if (temp == "")
+        {
+            while (temp == "")
+            {
+                Console.WriteLine("Cannot be null");
+                temp = Console.ReadLine();
+            }
+            fields.Add(temp);
+        }
+        else if (i == 2)
+        {
+            bool f = true;
+            while (f)
+            {
+                foreach (Category category in context.Categories)
+                {
+                    if (category.CategoryId == Convert.ToInt16(temp)) { fields.Add(temp); f = false; break; };
+                }
+                if (!f) { break; }
+                Console.Clear();
+                Console.WriteLine("There's no such Category, choose a correct one");
+                temp = Console.ReadLine();
+                while (temp == "")
+                {
+                    Console.Clear();
+                    Console.WriteLine("Cannot be null");
+                    temp = Console.ReadLine();
+                }
+            }
+        }
+        else if (i == 1)
+        {
+            bool f = true;
+            while (f)
+            {
+                foreach (Supplier supplier in context.Suppliers)
+                {
+                    if (supplier.SupplierId == Convert.ToInt16(temp)) { fields.Add(temp); f = false; break; };
+                }
+                if (!f) { break; }
+                Console.Clear();
+                Console.WriteLine("There are no such Suppliers, choose a correct one");
+                temp = Console.ReadLine();
+                while (temp == "")
+                {
+                    Console.Clear();
+                    Console.WriteLine("Cannot be null");
+                    temp = Console.ReadLine();
+                }
+            }
+        }
+        else
+        {
+            fields.Add(temp);
+        }
+    }
+    string prodName = fields[0];
+    short supplierId = Convert.ToInt16(fields[1]); 
+    short CategoryId = Convert.ToInt16(fields[2]);
+    string qPU = fields[3];
+    float uP = Convert.ToSingle(fields[4]);
+    short uOO = 0;
+    short uIS = Convert.ToInt16(fields[5]);
+    short rL = Convert.ToInt16(fields[6]);
+    Product product = new Product
+    {
+        ProductId = prodId,
+        ProductName = prodName,
+        SupplierId = supplierId,
+        CategoryId = CategoryId,
+        QuantityPerUnit = qPU,
+        UnitPrice = uP,
+        UnitsInStock = uIS,
+        Discontinued = 0,
+        ReorderLevel = rL,
+        UnitsOnOrder = uOO
+
+
+    };
+    return product;
 }
 string addShipper()
 {
@@ -125,16 +214,99 @@ string addShipper()
 }
 string addProduct()
 {
-    return "3";
+    using var context = new NorthwindContext();
+    string answer = "";
+    short newId = 0;
+    foreach(Product p  in context.Products)
+    {
+        if (p.ProductId >= newId) { newId=(short)(p.ProductId+1); }
+    }
+    Product product = createProduct(0, newId);
+    try
+    {
+        context.Products.Add(product);
+        context.SaveChanges();
+        answer = "Product added successfully";
+    }
+    catch(DbUpdateConcurrencyException)
+    {
+        answer ="couldn't be added due to concurency exception";
+    }
+    catch (DbUpdateException)
+    {
+        answer = "couldn't be added due to constraints";
+    }
+    return answer;
 }
 string addSupplier()
 {
-    using (var context = new NorthwindContext())
+    using var context = new NorthwindContext();
+    string answer = "";
+    string[] fieldLabels = { "Company Name", "Contact Name(unneccessary)", "Contact Title(unneccessary)", "Address(unneccessary)", "City(unneccessary)", "Region(unneccessary)", "PostalCode(unneccessary)", "Country(unneccessary)", "Phone(unneccessary)", "Fax(unneccessary)", "Homepage(unneccessary)"};
+    List<String> fields = new List<string>();
+
+    for (int i = 0; i < fieldLabels.Length; i++)
     {
-        string answer = "";
-        string[] fieldLabels = { "Company Name", "Contact Name(unneccessary)", "Contact Title(unneccessary)", "Address(unneccessary)", "City(unneccessary)", "Region(unneccessary)", "PostalCode(unneccessary)", "Country(unneccessary)", "Phone(unneccessary)", "Fax(unneccessary)", "Homepage(unneccessary)", "Add products you supply? y/n" };
-        List<String> fields = new List<string>();
-        short newId = 0;
+        Console.Clear();
+        Console.WriteLine($"Please input {fieldLabels[i]}");
+        string temp = Console.ReadLine();
+        if (temp == "" && i >= 1)
+        {
+            fields.Add("--");
+        }
+        else if (temp == "")
+        {
+            while (temp == "")
+            {
+                Console.WriteLine("Cannot be null");
+                temp = Console.ReadLine();
+            }
+            fields.Add(temp);
+        }
+        else
+        {
+            fields.Add(temp);
+        }
+    }
+
+
+    string rx = @"^\d{1}-\d{3}-\d{3}-\d{4}$";
+    string rx2 = @"^\(\d{3}\) \d{3}-\d{4}$";
+    string companyName = fields[0];
+    string contactName;
+    string contactTitle;
+    string address;
+    string city;
+    string country;
+    string phone;
+    string region;
+    string postalCode;
+    string fax;
+    string homepage;
+    if (fields[1] == "--") { contactName = null; }
+    else { contactName = fields[1]; }
+    if (fields[2] == "--") { contactTitle = null; }
+    else { contactTitle = fields[2]; }
+    if (fields[3] == "--") { address = null; }
+    else { address = fields[3]; }
+    if (fields[4] == "--") { city = null; }
+    else { city = fields[4]; }
+    if (fields[5] == "--") { region = null; }
+    else { region = fields[5]; }
+    if (fields[6] == "--") { postalCode = null; }
+    else { postalCode = fields[6]; }
+    if (fields[7] == "--") { country = null; }
+    else { country = fields[7]; }
+    if (fields[8] == "--" || !(Regex.IsMatch(rx, fields[8]) || Regex.IsMatch(rx2, fields[8]))) { phone = null; }
+    else { phone = fields[8]; }
+    if (fields[9] == "--") { fax = null; }
+    else { fax = fields[9]; }
+    if (fields[10] == "--") { homepage = null; }
+    else { homepage = fields[10]; }
+    short newId = 0;
+    Supplier supplier = new Supplier();
+    try
+    {
         foreach (var e in context.Suppliers)
         {
             if (newId <= e.SupplierId)
@@ -142,98 +314,7 @@ string addSupplier()
                 newId = (short)(e.SupplierId + 1);
             }
         }
-        for (int i = 0; i < fieldLabels.Length; i++)
-        {
-            Console.Clear();
-            Console.WriteLine($"Please input {fieldLabels[i]}");
-            string temp = Console.ReadLine();
-            if (temp == "" && (i >= 1 && i <= 11))
-            {
-                fields.Add("--");
-            }
-            else if (temp == "")
-            {
-                while (temp == "")
-                {
-                    Console.WriteLine("Cannot be null");
-                    temp = Console.ReadLine();
-                }
-                fields.Add(temp);
-            }
-            else if (i == 11)
-            {
-
-
-                List<Product> products = new List<Product>();
-                while (temp == "y")
-                {
-                    short newProdId = 0;
-                    foreach (var e in context.Products)
-                    {
-                        if (newId <= e.ProductId)
-                        {
-                            newId = (short)(e.ProductId + 1);
-                        }
-                    }
-                    answer = addProductS(newId, newProdId);
-                    if(answer=="Product added successfully")
-                    {
-                        foreach (var product in context.Products)
-                        {
-                            if (product.ProductId == newProdId)
-                            {
-                                products.Add(product);
-                            }
-                        }
-                    }
-
-                    Console.Clear();
-                    Console.WriteLine($"{answer}\nAdd another product? y/n");
-                    temp = Console.ReadLine();
-
-                }
-            }
-
-            else
-            {
-                fields.Add(temp);
-            }
-        }
-
-        string rx = @"^\d{1}-\d{3}-\d{3}-\d{4}$";
-        string rx2 = @"^\(\d{3}\) \d{3}-\d{4}$";
-        string companyName = fields[0];
-        string contactName;
-        string contactTitle;
-        string address;
-        string city;
-        string country;
-        string phone;
-        string region;
-        string postalCode;
-        string fax;
-        string homepage;
-        if (fields[1] == "--") { contactName = null; }
-        else { contactName = fields[1]; }
-        if (fields[2] == "--") { contactTitle = null; }
-        else { contactTitle = fields[2]; }
-        if (fields[3] == "--") { address = null; }
-        else { address = fields[3]; }
-        if (fields[4] == "--") { city = null; }
-        else { city = fields[4]; }
-        if (fields[5] == "--") { region = null; }
-        else { region = fields[5]; }
-        if (fields[6] == "--") { postalCode = null; }
-        else { postalCode = fields[6]; }
-        if (fields[7] == "--") { country = null; }
-        else { country = fields[7]; }
-        if (fields[8] == "--") { phone = null; }
-        else { phone = fields[8]; }
-        if (fields[9] == "--") { fax = null; }
-        else { fax = fields[9]; }
-        if (fields[10] == "--") { homepage = null; }
-        else { homepage = fields[10]; }
-        Supplier supplier = new Supplier
+        supplier = new Supplier 
         {
             SupplierId = newId,
             CompanyName = companyName,
@@ -245,25 +326,70 @@ string addSupplier()
             Phone = phone,
             Fax = fax,
             Address = address,
-            Homepage = homepage
+            Homepage = homepage,
+            Products = new List<Product>()
         };
-
-        try
-        {
-            context.SaveChanges();
-            answer = "supplier added successfully";
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            answer = "couldn't add supplier due to concurrency exception";
-        }
-        catch (DbUpdateException)
-        {
-            answer = "couldn't add supplier due to unique constraints";
-
-        }
-
+        context.Suppliers.Add(supplier);
+        context.SaveChanges();
+        answer = "supplier added successfully";
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+        answer = "couldn't add supplier due to concurrency exception";
         return answer;
+    }
+    catch (DbUpdateException)
+    {
+        answer = "couldn't add supplier due to unique constraints";
+        return answer;
+    }
+    if (answer == "supplier added successfully")
+    {
+        Console.Clear();
+        Console.WriteLine(answer);
+        Console.WriteLine("Add any products it supplies? y/n");
+        string temp = Console.ReadLine();
+        while (temp == "y")
+        {
+            Product prod = new Product();
+            try
+            {
+                
+                short newProdId = 0;
+                foreach (var e in context.Products)
+                {
+                    if (newProdId <= e.ProductId)
+                    {
+                        newProdId = (short)(e.ProductId + 1);
+                    }
+                }
+                prod = createProduct(newId,newProdId);
+                supplier.Products.Add(prod);
+                prod.Supplier = supplier;
+                context.Products.Add(prod);
+                context.SaveChanges();
+                Console.Clear();
+                Console.WriteLine($"Product added succesfully\nAdd another product? y/n");
+                temp = Console.ReadLine();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                context.Entry(prod).State = EntityState.Detached;
+                Console.Clear();
+                Console.WriteLine("Product couldn't be added due to concurrency exception \nadd another one instead? y/n");
+                temp = Console.ReadLine();
+                
+            }
+            catch (DbUpdateException)
+            {
+                context.Entry(prod).State = EntityState.Detached;
+                Console.Clear();
+                Console.WriteLine("Product couldn't be added due to update exception\nadd another one instead? y/n");
+                temp = Console.ReadLine();
+            }
+        }
+    }
+    return answer;
 }
 string addEmployee()
 {
