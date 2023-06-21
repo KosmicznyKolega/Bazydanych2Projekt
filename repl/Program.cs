@@ -1,37 +1,43 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using repl.Models;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 void writeUI(string answer){
     Console.WriteLine(answer);
     Console.WriteLine(" - Northwind - \n" +
         "Choose a command:\n" +
-        "-add order\n-add shipper\n-add product\n-add supplier\n-add employee\n-exit");
+        "-add order\n-delete order\n-modify order\n-add shipper\n-add product\n-add supplier\n-exit");
 }
 int parseCmd(string text){
     if (text == "add order" || text == "1")
     {
         return 1;
     }
-    else if (text=="add shipper" || text == "2")
+    else if (text == "delete order" || text == "2")
     {
         return 2;
     }
-    else if (text == "add product" || text == "3")
+    else if (text == "modify order" || text == "3")
     {
         return 3;
     }
-    else if (text == "add supplier" || text == "4")
+    else if (text=="add shipper" || text == "4")
     {
         return 4;
     }
-    else if (text == "add employee" || text == "5")
+    else if (text == "add product" || text == "5")
     {
         return 5;
     }
-    else if (text == "exit" || text == "7")
+    else if (text == "add supplier" || text == "6")
     {
         return 6;
+    }
+    else if (text == "exit" || text == "7")
+    {
+        return 7;
     }
 
     else return 0;
@@ -39,7 +45,207 @@ int parseCmd(string text){
 
 string addOrder()
 {
-    return "1";
+    using var context = new NorthwindContext();
+    string answer = "";
+    string[] fieldLabels = { "First Name", "Last Name", "adress", "Region", "PostalCode", "Country", "city" };
+    List<String> fields = new List<string>();
+
+    for (int i = 0; i < fieldLabels.Length; i++)
+    {
+        Console.Clear();
+        Console.WriteLine($"Please input {fieldLabels[i]}");
+        string temp = Console.ReadLine();
+        if (temp == "")
+        {
+            while (temp == "")
+            {
+                Console.WriteLine("Cannot be null");
+                temp = Console.ReadLine();
+            }
+            fields.Add(temp);
+        }
+        else
+        {
+            fields.Add(temp);
+        }
+    }
+    // ==================================
+    string firstName = fields[0];
+    string lastName = fields[1];
+    string address = fields[2];
+    string shipTo = firstName + " " +lastName;
+    string country = fields[5];
+    string region = fields[3];
+    string postalCode = fields[4];
+    string city = fields[6];
+    string newId = firstName.Substring(0, 2) + lastName.Substring(0, 2);
+    string id = newId.ToUpper();
+    bool f = false;
+    Customer customer = new Customer();
+    foreach (Customer el in context.Customers)
+    {
+        if (id == el.CustomerId)
+        {
+            f = true;
+            customer = el;
+        }
+    }
+    if (!f)
+    {
+        customer = new Customer
+        {
+            CustomerId = id,
+            CompanyName = firstName + " " + lastName,
+            ContactName = firstName + " " + lastName,
+            ContactTitle = null,
+            Address = address,
+            City = city,
+            Region = region,
+            PostalCode = postalCode,
+            Country = country,
+            Phone = null,
+            Fax = null
+        };
+    }
+    bool ifEnd = false;
+    while (!ifEnd)
+    {
+        context.ChangeTracker.Clear();
+        List<OrderDetail> orders = new List<OrderDetail>();
+        try
+        {
+            bool ifContinue = true;
+            while (ifContinue)
+            {
+                string[] fieldLabels2 = { "what product you want to buy (id)", "how much of it" };
+                List<String> fields2 = new List<string>();
+
+                Product newProd = new Product();
+                for (int i = 0; i < fieldLabels2.Length; i++)
+                {
+                    Console.Clear();
+                    Console.WriteLine($"Please input {fieldLabels2[i]}");
+                    string temp = Console.ReadLine();
+                    if (temp == "")
+                    {
+                        while (temp == "")
+                        {
+                            Console.WriteLine("Cannot be null");
+                            temp = Console.ReadLine();
+                        }
+                        fields2.Add(temp);
+                    }
+                    else if (i == 0)
+                    {
+                        while (true)
+                        {
+                            newProd = context.Products.Where(x => x.ProductId == Convert.ToInt16(temp)).AsNoTracking().FirstOrDefault();
+                            if (newProd != null)
+                            {
+                                fields2.Add(temp);
+                                break;
+                            }
+                            Console.Clear();
+                            Console.WriteLine("There's no such Item, choose a correct one");
+                            temp = Console.ReadLine();
+                            while (temp == "")
+                            {
+                                Console.Clear();
+                                Console.WriteLine("Cannot be null");
+                                temp = Console.ReadLine();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        fields2.Add(temp);
+                    }
+                    if (i == 1 && newProd.UnitsInStock < Convert.ToInt16(fields2[1]))
+                    {
+                        while (newProd.UnitsInStock < Convert.ToInt16(fields2[1]))
+                        {
+                            Console.Clear();
+                            Console.WriteLine($"There's not enough of this product please select less than {newProd.UnitsInStock} units or 0 to continue\n");
+                            temp = Console.ReadLine();
+                            fields2[1] = temp;
+                        }
+                    }
+
+                }
+                if (fields2[1] != "0")
+                {
+                    orders.Add(new OrderDetail {  ProductId = newProd.ProductId, Discount = 0, UnitPrice = (float)(newProd.UnitPrice * Convert.ToInt16(fields2[1])), Quantity = Convert.ToInt16(fields2[1]),OrderId = -1, });
+                }
+                Console.Clear();
+                Console.WriteLine("add another product to order? y/n\n");
+                ifContinue = Console.ReadLine() == "y";
+            }
+            short newestid = 0;
+            foreach (Order or in context.Orders) { if (or.OrderId >= newestid) { newestid = (short)(or.OrderId + 1); } }
+            double fr = 0;
+            foreach (OrderDetail order in orders)
+            {
+                order.OrderId = newestid;
+                foreach (Product product in context.Products) {
+                    if (product.ProductId == order.ProductId)
+                    {
+                        product.UnitsInStock = (short?)(product.UnitsInStock - order.Quantity);
+                        break;
+                    }
+                }
+                context.OrderDetails.Add(order);
+                fr += order.Quantity * 0.51;
+            }
+            var rnd = new Random(DateTime.Now.Millisecond);
+            short ticks = (short)rnd.Next(1, 6);
+            short shipp = (short)rnd.Next(1, 3);
+            Order newOrder = new Order
+            {
+                OrderId = newestid,
+                CustomerId = id,
+                EmployeeId = ticks,
+                OrderDate = DateOnly.FromDateTime(DateTime.Now),
+                ShippedDate = null,
+                ShipVia = shipp,
+                Freight = (float)fr,
+                ShipName = firstName + " " + lastName,
+                ShipAddress = address,
+                ShipCity = city,
+                ShipRegion = region,
+                ShipPostalCode = postalCode,
+                ShipCountry = country
+            };
+            if (!f) {
+                ifEnd = true;
+                context.Customers.Add(customer);
+                ifEnd = false;
+            }
+            context.Orders.Add(newOrder);
+            context.SaveChanges();
+            answer = "Order added!";
+            ifEnd = true; break;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            answer = "couldn't add order due to concurrency exception";
+            ifEnd = true;
+        }
+        catch (DbUpdateException)
+        {
+            if (ifEnd)
+            {
+                answer = "couldn't add order due to unique constraints (customer added mid-order)";
+            }
+            else
+            {
+                Console.Clear();
+                Console.WriteLine("sorry the products you were trying to purchase are no longer available try again? y/n\n");
+                ifEnd = (Console.ReadLine() != "y");
+                answer = "couldn't add order due to products >0 constraint";
+            }
+        }
+    }
+    return answer;
 }
 Product createProduct(short suppId, short prodId)
 {
@@ -391,9 +597,208 @@ string addSupplier()
     }
     return answer;
 }
-string addEmployee()
+
+string deleteOrder()
 {
-    return "5";
+    using var context = new NorthwindContext();
+    string answer = "";
+    Console.Clear();
+    Console.WriteLine("What order to delete?\n");
+    string temp = Console.ReadLine();
+    Order order = context.Orders.Where(x => x.OrderId == Convert.ToInt16(temp)).FirstOrDefault();
+    if (order==null)
+    {
+        answer = "no such order exists";
+    }
+    else if (order.ShippedDate == null)
+    {
+        try
+        {
+            List<OrderDetail> orderDetail = context.OrderDetails.Where(x => x.OrderId == order.OrderId).ToList();
+            foreach (OrderDetail orderDetails in orderDetail)
+            {   
+                Product prod = context.Products.Where(x => x.ProductId == orderDetails.ProductId).FirstOrDefault();
+                prod.UnitsInStock = (short ?)(prod.UnitsInStock + orderDetails.Quantity); 
+                context.Remove(orderDetails);
+            }
+            context.Remove(order);
+            context.SaveChanges();
+            answer = "order deleted succesfully";
+        }
+        catch(DbUpdateConcurrencyException)
+        {
+            answer = "couldn't delete order due to concurrency exception";
+        }
+        catch (DbUpdateException) 
+        {
+            answer = "couldn't delete order due to constraint exception (shouldn't be possible?)";
+        }
+    }
+    else
+    {
+        answer = "the order was already sent so it can't be deleted";
+    }
+    return answer;
+}
+string modifyOrder()
+{
+    using NorthwindContext context = new NorthwindContext();
+    string answer = "";
+    Console.Clear();
+    Console.WriteLine("What order to modify?\n");
+    string temp = Console.ReadLine();
+    Order order = context.Orders.Where(x => x.OrderId == Convert.ToInt16(temp)).FirstOrDefault();
+    if (order != null)
+    {
+        Console.Clear();
+        Console.WriteLine("what to modify?\n" +
+            "0 - employee id\n" +
+            "1 - required date\n" +
+            "2 - shipped date \n" +
+            "3 - ship via \n" +
+            "4 - freight \n" +
+            "5 - ship name\n" +
+            "6 - ship address\n" +
+            "7 - ship city\n" +
+            "8 - ship region\n" +
+            "9 - postal code \n" +
+            "10 - country\n" +
+            "11 - quantity of products on order");
+        temp = Console.ReadLine();
+        try
+        {
+            switch (temp){
+                case "0":
+                    Console.Clear();
+                    Console.WriteLine("enter new employee id\n");
+                    order.EmployeeId = Convert.ToInt16(Console.ReadLine());
+                    context.SaveChanges();
+                    answer = "employee id changed";
+                    break;
+
+                case "1":
+                    Console.Clear();
+                    Console.WriteLine("enter new required date\n");
+                    order.RequiredDate = DateOnly.Parse(Console.ReadLine());
+                    context.SaveChanges();
+                    answer = "required date changed";
+                    break;
+
+                case "2":
+                    Console.Clear();
+                    Console.WriteLine("enter new shipped date\n");
+                    order.ShippedDate = DateOnly.Parse(Console.ReadLine());
+                    context.SaveChanges();
+                    answer = "shipped date changed";
+                    break;
+                case "3":
+                    Console.Clear();
+                    Console.WriteLine("enter new ship via\n");
+                    order.ShipVia = Convert.ToInt16(Console.ReadLine());
+                    context.SaveChanges();
+                    answer = "ship via changed";
+                    break;
+                case "4":
+                    Console.Clear();
+                    Console.WriteLine("enter new freight\n");
+                    order.Freight= (float?)Convert.ToDouble(Console.ReadLine());
+                    context.SaveChanges();
+                    answer = "freight changed";
+                    break;
+                case "5":
+                    Console.Clear();
+                    Console.WriteLine("enter new ship name\n");
+                    order.ShipName= Console.ReadLine();
+                    context.SaveChanges();
+                    answer = "ship name changed";
+                    break;
+                case "6":
+                    Console.Clear();
+                    Console.WriteLine("enter new ship address\n");
+                    order.ShipAddress = Console.ReadLine();
+                    context.SaveChanges();
+                    answer = "ship address changed";
+                    break;
+                case "7":
+                    Console.Clear();
+                    Console.WriteLine("enter new ship city\n");
+                    order.ShipCity = Console.ReadLine();
+                    context.SaveChanges();
+                    answer = "ship city changed";
+                    break;
+                case "8":
+                    Console.Clear();
+                    Console.WriteLine("enter new ship region\n");
+                    order.ShipRegion = Console.ReadLine();
+                    context.SaveChanges();
+                    answer = "ship region changed";
+                    break;
+                case "9":
+                    Console.Clear();
+                    Console.WriteLine("enter new postal code\n");
+                    order.ShipPostalCode = Console.ReadLine();
+                    context.SaveChanges();
+                    answer = "postal code changed";
+                    break;
+                case "10":
+                    Console.Clear();
+                    Console.WriteLine("enter new ship country\n");
+                    order.ShipCountry = Console.ReadLine();
+                    context.SaveChanges();
+                    answer = "ship country changed";
+                    break;
+                case "11":
+                    temp = "";
+                    while (temp.Length == 0)
+                    {
+                        Console.Clear();
+                        Console.WriteLine("which product?\n");
+                        temp = Console.ReadLine();
+                    }
+                    OrderDetail orderDetail1 = context.OrderDetails.Where(x => x.OrderId == order.OrderId && x.ProductId == Convert.ToInt16(temp)).FirstOrDefault();
+                    if (orderDetail1 != null)
+                    {
+                        temp = "";
+                        foreach (Product product in context.Products)
+                        {
+                            if (product.ProductId == orderDetail1.ProductId)
+                            {
+                                Console.Clear();
+                                Console.WriteLine("what should the quantity be?\n");
+                                temp = Console.ReadLine();
+                                product.UnitsInStock = (short?)(product.UnitsInStock + orderDetail1.Quantity - Convert.ToInt16(temp));
+                                orderDetail1.Quantity = Convert.ToInt16(temp);
+                                orderDetail1.UnitPrice = (float)(product.UnitPrice * orderDetail1.Quantity);
+                                answer = "order modified succesfully";
+                            }
+                        }
+                        context.SaveChanges();
+
+                    }
+                    else
+                    {
+                        answer = "Coulnd't find your product in order";
+                    }
+                    break;
+                default:
+                    break;
+
+            }
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            answer = "couldn't modify order due to concurrency exception";
+        }
+        catch (DbUpdateException)
+        {
+            answer = "couldn't modify order due to constraints exception";
+        }
+    }
+    else
+    {
+        answer = "can't modify an order that doesn't exist";
+    }
+    return answer;
 }
 //=================================================
 //main start
@@ -411,18 +816,21 @@ while (true)
             answer=addOrder();
             break;
         case 2:
-            answer=addShipper();
+            answer = deleteOrder();
             break;
         case 3:
-            answer=addProduct();
+            answer = modifyOrder();
             break;
         case 4:
-            answer=addSupplier();
+            answer=addShipper();
             break;
         case 5:
-            answer=addEmployee();
+            answer=addProduct();
             break;
         case 6:
+            answer=addSupplier();
+            break;
+        case 7:
             Console.Clear();
             Console.WriteLine("Exiting...");
             return 0;
